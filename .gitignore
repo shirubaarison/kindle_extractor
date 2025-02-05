@@ -21,3 +21,7 @@ kindle_extractor-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+vocab.db
+vocab.db-shm
+vocab.db-wal
