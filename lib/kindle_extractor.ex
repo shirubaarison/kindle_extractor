@@ -5,13 +5,21 @@ defmodule KindleExtractor do
   alias KindleExtractor.Lookup
   alias KindleExtractor.Word
   alias KindleExtractor.Repo
+  alias KindleExtractor.Dictionary
+  alias KindleExtractor.Entry
+  alias KindleExtractor.Book
 
-  def hello do
-    :world
-  end
-
-  def init do
+  def init(dictionary) do
     Repo.start_link()
+
+    IO.inspect("Loading dictionary...")
+
+    tree =
+      dictionary
+      |> Dictionary.load_dictionary()
+      |> Dictionary.load_tree()
+
+    tree
   end
 
   def extractWords(lang \\ "en") do
@@ -24,25 +32,26 @@ defmodule KindleExtractor do
     Enum.map(words, fn w -> w.word end)
   end
 
-  def extractLookup do
+  def extractLookup(tree, count \\ 10) do
     query = from l in Lookup,
             join: b in BookInfo, on: l.book_key == b.id,
             join: w in Word, on: l.word_key == w.id,
-            limit: 1
+            where: w.lang == "ja",
+            limit: ^count
 
     words = Repo.all(query)
     |> Repo.preload(:word)
     |> Repo.preload(:book)
 
     Enum.map(words, fn elem -> {
-      %{
+      %Entry{
         word: elem.word.word,
         usage: String.trim(elem.usage),
-        book: %{
+        book: %Book{
           title: elem.book.title,
           authors: elem.book.authors
         },
-        meaning: "placeholder meaning bla bla"
+        meaning: Dictionary.search(tree, elem.word.word)
       }
     } end)
   end
@@ -53,5 +62,9 @@ defmodule KindleExtractor do
     res = Repo.all(query)
 
     Enum.map(res, fn w -> %{title: w.title, authors: w.authors} end)
+  end
+
+  def queryWord(tree, word) do
+    Dictionary.search(tree, word)
   end
 end
