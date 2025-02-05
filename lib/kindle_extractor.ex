@@ -1,25 +1,17 @@
 defmodule KindleExtractor do
   import Ecto.Query, only: [from: 2]
 
-  alias KindleExtractor.BookInfo
-  alias KindleExtractor.Lookup
-  alias KindleExtractor.Word
-  alias KindleExtractor.Repo
-  alias KindleExtractor.Dictionary
-  alias KindleExtractor.Entry
-  alias KindleExtractor.Book
+  alias KindleExtractor.{BookInfo, Lookup, Word, Repo, Dictionary, Entry, Book}
 
   def init(dictionary) do
     Repo.start_link()
 
-    IO.inspect("Loading dictionary...")
-
-    tree =
-      dictionary
-      |> Dictionary.load_dictionary()
-      |> Dictionary.load_tree()
-
-    tree
+    with {:ok, dictionary} <- Dictionary.load_dictionary(dictionary),
+         {:ok, tree} <- Dictionary.load_tree(dictionary) do
+          tree
+         else
+          err -> err
+         end
   end
 
   def extractWords(lang \\ "en") do
@@ -33,25 +25,30 @@ defmodule KindleExtractor do
   end
 
   def extractLookup(tree, count \\ 10) do
-    query = from l in Lookup,
-            join: b in BookInfo, on: l.book_key == b.id,
-            join: w in Word, on: l.word_key == w.id,
-            where: w.lang == "ja",
-            limit: ^count
+    query =
+      from l in Lookup,
+        join: b in BookInfo, on: l.book_key == b.id,
+        join: w in Word, on: l.word_key == w.id,
+        where: w.lang == "ja",
+        limit: ^count,
+        select: %{
+          word: w.word,
+          usage: l.usage,
+          book_title: b.title,
+          book_authors: b.authors
+        }
 
     words = Repo.all(query)
-    |> Repo.preload(:word)
-    |> Repo.preload(:book)
 
     Enum.map(words, fn elem -> {
       %Entry{
-        word: elem.word.word,
+        word: elem.word,
         usage: String.trim(elem.usage),
         book: %Book{
-          title: elem.book.title,
-          authors: elem.book.authors
+          title: elem.book_title,
+          authors: elem.book_authors
         },
-        meaning: Dictionary.search(tree, elem.word.word)
+        meaning: Dictionary.search(tree, elem.word)
       }
     } end)
   end
