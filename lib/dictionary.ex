@@ -15,11 +15,12 @@ defmodule KindleExtractor.Dictionary do
         end)
 
         full_dict =
-          1..(file_count - 1) # do not load index.json
+          1..file_count
             |> Enum.reduce([], fn n, acc ->
               bank = "term_bank_#{n}.json"
               case load_term_bank(folder_path, bank) do
                 [] -> acc
+                {:error, :enoent} -> acc
                 json -> [json | acc]
               end
             end)
@@ -35,13 +36,15 @@ defmodule KindleExtractor.Dictionary do
          {:ok, json} <- Jason.decode(body), do: json
   end
 
+  # only works with japanese dictionaries (JMdict...)
+  # todo: work with english too
   def load_tree(json) do
-    tree =
-      Enum.reduce(json, nil, fn elem, tree ->
+      Enum.reduce(json, nil, fn elem, _ ->
         [word, reading, _, _, _, definition | _] = elem
-        Tree.insert(tree, word, reading, definition)
+        Tree.insert(word, reading, definition)
       end)
-    {:ok, tree}
+
+    :ok
   end
 
   def search(tree, word) do
